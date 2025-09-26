@@ -1,0 +1,32 @@
+@vasyteri ➜ /workspaces/system_programming (main) $ cd Work
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ chmod 0772 "Лабараторная 1"
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ ls -s
+total 4
+4 'Лабараторная 1'
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ ls-a
+bash: ls-a: command not found
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ ls -l
+total 4
+drwxrwx-w-+ 3 codespace codespace 4096 Sep 14 07:47 'Лабараторная 1'
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ chmod 0200 "ФИО"
+chmod: cannot access 'ФИО': No such file or directory
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ chmod 0200 "ФИО"
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ ls -l
+total 8
+drwxrwx-w-+ 2 codespace codespace 4096 Sep 14 07:59 'Лабараторная 1'
+d-w-------+ 2 codespace codespace 4096 Sep 14 07:59  ФИО
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ cat >> "Text @1" << EOF
+Птица говорун отличается умом и сообразительностью!
+Отличается умом, отличается сообразительностью...
+EOF
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ cp 'Text @1' 'Text $2'
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ mv 'Text $2' "Лабараторная 1"
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ cp "Text @1" "ФИО/"
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ gzip "Text @1"
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ gzip "Text #3"
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ tar -cf "MyAchiv.tar" "Text @1.gz" "Text #3.gz"
+@vasyteri ➜ /workspaces/system_programming/Work (main) $ touch "ФИО/Result_one"
+@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) $ rev "Text @1" "Result_one"
+!юьтсоньлетизарбоос и мому ястеачилто нуровог ацитП
+...юьтсоньлетизарбоос ястеачилто ,мому ястеачилтО@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) $ 
+...юьтсоньлетизарбоос ястеачилто ,мому ястеачилтО@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) $ mv "Result_one" "Result_two"
