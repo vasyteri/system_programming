@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-long long N = 2980480801;
+long long N = 1019734634;
 
 int main() {
     char sum = 0;

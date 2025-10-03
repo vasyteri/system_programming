@@ -1,36 +1,40 @@
 format ELF64
+
 public _start
 public exit
+public print_symbol
 
-section '.bss' writable
-my db 0xA, "S=QLQGaThNTMUkUIfNqqbSWtpNV"
-newline db 10, 0
+section '.data' writable
+    place db 1
+    s db "iJEcfjYGYkTaRdjdLixIKVNkM"
 
 section '.text' executable
-_start:
-    mov rcx, my
-    add rcx, 27
-    .iter:
-        mov rax, 4
-        mov rbx, 1
+    _start:
+        xor rcx, rcx
+        add rcx, 25
+        .iter:
+            mov al, [s + rcx]
+            push rcx
+            call print_symbol
+            pop rcx
+            dec rcx
+            cmp rcx, -1
+            jne .iter
 
-        mov rdx, 1
-        int 0x80
+        mov al, 0xA
+        call print_symbol
+        call exit
 
-        dec rcx
-        cmp rcx, my
-        jne .iter
-
-    mov rax, 4
-    mov rbx, 1
-
-    mov rcx, newline
-    mov rdx, 1
+print_symbol:
+    mov [place], al
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, place
+    mov edx, 1
     int 0x80
-
-    call exit
+    ret
 
 exit:
-  mov rax, 1
-  xor rbx, rbx
-  int 0x80
+    mov eax, 1
+    mov ebx, 0
+    int 0x80

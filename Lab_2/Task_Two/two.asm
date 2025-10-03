@@ -1,52 +1,54 @@
 format ELF64
+
 public _start
 public exit
+public print_symbol
 
-section '.bss' writable
-sym db '$'
-M dq 5
-K dq 11
-newline db 10
+section '.data' writable
+    place db 1
+    array db 36 dup ('$')
+    newline db 0xA
 
 section '.text' executable
-_start:
-    mov rcx, [K]
+    _start:
+        xor rbx, rbx                
+    .iter:
+        mov al, [array + rbx]
+        push rbx 
+        call print_symbol
+        pop rbx
+        
+        mov rax, rbx
+        mov rcx, 4
+        xor rdx, rdx
+        div rcx                     
+        
+        cmp rdx, 3                  
+        jne .continue
+                
+        
+        mov al, 0xA
+        push rbx
+        call print_symbol
+        pop rbx
+        
+    .continue:
+        inc rbx
+        cmp rbx, 36
+        jl .iter
+        
+        call exit
 
-    .iter1:
-        push rcx
-        mov rdx, [M]
-
-        .iter2:
-            push rdx
-
-            mov rcx, sym
-
-            mov rax, 4
-            mov rbx, 1
-            mov rdx, 1
-            int 0x80
-
-            pop rdx
-            dec rdx
-            cmp rdx, 0
-            jne .iter2
-
-        mov rax, 4
-        mov rbx, 1
-
-        mov rcx, newline
-        mov rdx, 1
-        int 0x80
-
-        pop rcx
-        dec rcx
-        cmp rcx, 0
-        jne .iter1
-
-
-    call exit
+print_symbol:
+    mov [place], al
+    mov eax, 4
+    mov ebx, 1
+    mov ecx, place
+    mov edx, 1
+    int 0x80
+    ret
 
 exit:
-  mov rax, 1
-  xor rbx, rbx
-  int 0x80
+    mov eax, 1
+    mov ebx, 0
+    int 0x80
