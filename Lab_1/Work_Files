@@ -1,10 +1,12 @@
+@vasyteri ➜ /workspaces/system_programming (main) $mkdir Work
+@vasyteri ➜ /workspaces/system_programming (main) $mkdir Лабараторная 1
+@vasyteri ➜ /workspaces/system_programming (main) $mkdir Левочкин Василий Васильевич
 @vasyteri ➜ /workspaces/system_programming (main) $ cd Work
 @vasyteri ➜ /workspaces/system_programming/Work (main) $ chmod 0772 "Лабараторная 1"
 @vasyteri ➜ /workspaces/system_programming/Work (main) $ ls -s
 total 4
 4 'Лабараторная 1'
-@vasyteri ➜ /workspaces/system_programming/Work (main) $ ls-a
-bash: ls-a: command not found
+
 @vasyteri ➜ /workspaces/system_programming/Work (main) $ ls -l
 total 4
 drwxrwx-w-+ 3 codespace codespace 4096 Sep 14 07:47 'Лабараторная 1'
