@@ -2,8 +2,8 @@ format ELF64
 public _start
 public exit
 
-include '/home/egorp/cpp/System-programming/help.asm'
-include '/home/egorp/cpp/System-programming/func.asm'
+include '../../func.asm'
+include '../../help.asm'
 
 section '.bss' writable
     buffer rb 256
