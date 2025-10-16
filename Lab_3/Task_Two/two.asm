@@ -7,76 +7,73 @@ public print_newline
 
 section '.data' writable
     place db ?
-    newline db 0xA 
-    
+    newline db 0xA
 
 section '.text' executable
 
 _start:
+   
+    mov rax, [rsp]          
+    cmp rax, 4              
+    jl finish              
 
-mov rdi, [rsp+16]  ; argv[1]
-mov rsi, [rsp+24]  ; argv[2]
-mov rdx, [rsp+32]  ; argv[3]
-
-    mov rdi, [rsp+16]  ; argv[1]
+    mov rsi, [rsp+8*2]      
     call str_number
     push rax
 
-    mov rsi,[rsp+24]
+    mov rsi, [rsp+8*3+8]    
     call str_number
     push rax
 
-    mov rdx, [rsp+32]
+    mov rsi, [rsp+8*4+16]   
     call str_number
     mov rcx, rax
 
+
     pop rbx
+    test rbx, rbx
+    jz finish
     pop rax
-    mov rdi, rax
+    test rax, rax
+    jz finish
 
-    xor rdx, rdx
-    div rbx
 
-    add rax, rdi
-
+    add rax, rbx
     xor rdx, rdx
     div rcx
 
     call print
     call print_newline
+
+finish:
     call exit
-
-
 
 str_number:
     push rcx
     push rbx
 
-    xor rax,rax
-    xor rcx,rcx
+    xor rax, rax       
+    xor rcx, rcx        
+    mov rbx, 10         
 
 .loop:
-    xor     rbx, rbx
-    mov     bl, byte [rsi+rcx]
-    cmp     bl, 48
-    jl      .finished
-    cmp     bl, 57
-    jg      .finished
-
-    sub     bl, 48
-    add     rax, rbx
-    mov     rbx, 10
-    mul     rbx
-    inc     rcx
-    jmp     .loop
+    mov cl, byte [rsi]  
+    test cl, cl         
+    jz .finished
+    
+    cmp cl, '0'
+    jl .finished
+    cmp cl, '9'
+    jg .finished
+    
+    sub cl, '0'         
+    imul rax, rbx       
+    add rax, rcx        
+    
+    inc rsi             
+    jmp .loop
 
 .finished:
-    cmp     rcx, 0
-    je      .restore
-    mov     rbx, 10
-    div     rbx
-
-.restore:
     pop rbx
     pop rcx
     ret
@@ -100,50 +97,57 @@ print_newline:
     ret
 
 print:
-    push rax            ; сохраняем исходное значение RAX
-    push rbx            ; сохраняем RBX
-    push rcx            ; сохраняем RCX
-    push rdx            ; сохраняем RDX
-    push rsi            ; сохраняем RSI
-    push rdi            ; сохраняем RDI
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
 
-    xor rbx, rbx        ; счётчик цифр
-
+    xor rbx, rbx        
     mov rcx, 10
-    .loop:
-        xor rdx, rdx
-        div rcx
-        push rdx
-        inc rbx
-        test rax, rax
-        jnz .loop
 
-    .print_loop:
-        pop rax
-        add rax, '0'
-        mov [place], al
+    test rax, rax       
+    jnz .loop
+    
+    
+    push 0
+    inc rbx
+    jmp .print_loop
 
-        push rbx        ; сохраняем счётчик
-        mov rax, 1      ; sys_write
-        mov rdi, 1      ; stdout
-        mov rsi, place  ; буфер
-        mov rdx, 1      ; длина
-        syscall
-        pop rbx         ; восстанавливаем счётчик
+.loop:
+    xor rdx, rdx
+    div rcx
+    push rdx
+    inc rbx
+    test rax, rax
+    jnz .loop
 
-        dec rbx
-        jnz .print_loop
+.print_loop:
+    pop rax
+    add al, '0'
+    mov [place], al
 
-    pop rdi             ; восстанавливаем RDI
-    pop rsi             ; восстанавливаем RSI
-    pop rdx             ; восстанавливаем RDX
-    pop rcx             ; восстанавливаем RCX
-    pop rbx             ; восстанавливаем RBX
-    pop rax             ; восстанавливаем исходное значение RAX
+    push rbx
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, place
+    mov rdx, 1
+    syscall
+    pop rbx
+
+    dec rbx
+    jnz .print_loop
+
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
     ret
-
 
 exit:
     mov rax, 60        
     xor rdi, rdi        
-    syscall     
+    syscall
