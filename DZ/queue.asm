@@ -35,9 +35,9 @@ create_queue:
     test rax, rax
     jz .error
 
-    mov qword [rax], 0      ; front = NULL
-    mov qword [rax + 8], 0  ; rear = NULL
-    mov qword [rax + 16], 0 ; size = 0
+    mov qword [rax], 0      
+    mov qword [rax + 8], 0  
+    mov qword [rax + 16], 0 
     jmp .done
 
 .error:
@@ -55,14 +55,14 @@ free_queue:
     test r12, r12
     jz .done
 
-    mov rbx, [r12]  ; q->front
+    mov rbx, [r12]  
 
 .free_nodes:
     test rbx, rbx
     jz .free_struct
 
     mov rdi, rbx
-    mov rbx, [rbx + 8]  ; node->next
+    mov rbx, [rbx + 8]  
 
     push rbx
     call free
@@ -82,29 +82,29 @@ free_queue:
 enqueue:
     push rdi rsi rbx r12 r13
 
-    mov r12, rdi  ; Queue* q
-    mov r13, rsi  ; unsigned long value
+    mov r12, rdi  
+    mov r13, rsi  
 
     mov rdi, 16
     call malloc
     test rax, rax
     jz .done
 
-    mov [rax], r13       ; node->data = value
-    mov qword [rax + 8], 0 ; node->next = NULL
+    mov [rax], r13       
+    mov qword [rax + 8], 0 
 
-    mov rbx, [r12 + 8]   ; q->rear
+    mov rbx, [r12 + 8]   
     test rbx, rbx
     jz .first_node
 
-    mov [rbx + 8], rax   ; q->rear->next = newNode
+    mov [rbx + 8], rax   
     jmp .update_rear
 
 .first_node:
-    mov [r12], rax       ; q->front = newNode
+    mov [r12], rax      
 
 .update_rear:
-    mov [r12 + 8], rax   ; q->rear = newNode
+    mov [r12 + 8], rax   
 
     mov rbx, [r12 + 16]
     inc rbx
@@ -125,15 +125,15 @@ dequeue:
     test rax, rax
     jnz .empty
 
-    mov rbx, [r12]       ; q->front
-    mov rax, [rbx]       ; return value = q->front->data
+    mov rbx, [r12]       
+    mov rax, [rbx]       
 
-    mov rcx, [rbx + 8]   ; q->front->next
-    mov [r12], rcx       ; q->front = q->front->next
+    mov rcx, [rbx + 8]   
+    mov [r12], rcx   
 
     test rcx, rcx
     jnz .update_size
-    mov qword [r12 + 8], 0 ; q->rear = NULL
+    mov qword [r12 + 8], 0 
 
 .update_size:
     mov rcx, [r12 + 16]
@@ -155,7 +155,7 @@ dequeue:
 
 
 is_empty:
-    mov rax, [rdi]      ; q->front
+    mov rax, [rdi]      
     test rax, rax
     setz al
     movzx rax, al
@@ -165,8 +165,8 @@ is_empty:
 fill_random:
     push rdi rsi rbx r12 r13 r14
 
-    mov r12, rdi  ; Queue* q
-    mov r13, rsi  ; unsigned long count
+    mov r12, rdi  
+    mov r13, rsi  
 
     xor r14, r14
 
@@ -192,7 +192,7 @@ fill_random:
 get_odd_numbers:
     push rdi rsi rbx r12 r13 r14
 
-    mov r12, rdi  ; Queue* q
+    mov r12, rdi  
 
     call create_queue
     mov r13, rax 
@@ -204,13 +204,13 @@ get_odd_numbers:
     test rax, rax
     jnz .done
 
-    mov rbx, [r12]  ; q->front
+    mov rbx, [r12]  
 
 .process_loop:
     test rbx, rbx
     jz .done
 
-    mov rsi, [rbx]  ; node->data
+    mov rsi, [rbx]  
     test rsi, 1
     jz .next_node
 
@@ -295,7 +295,7 @@ count_numbers_ending_with_1:
     test rax, rax
     jnz .done
 
-    mov rbx, [r12]  ; q->front
+    mov rbx, [r12]  
 
 .count_loop:
     test rbx, rbx
