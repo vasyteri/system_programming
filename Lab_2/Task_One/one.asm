@@ -1,8 +1,7 @@
 format ELF64
 
 public _start
-public exit
-public print_symbol
+
 
 section '.data' writable
     place db 1
@@ -26,15 +25,27 @@ section '.text' executable
         call exit
 
 print_symbol:
-    mov [place], al
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, place
-    mov edx, 1
-    int 0x80
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    push rcx
+    
+    mov [place], al      
+    mov rax, 1           
+    mov rdi, 1           
+    mov rsi, place       
+    mov rdx, 1           
+    syscall
+    
+    pop rcx
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
     ret
 
 exit:
-    mov eax, 1
-    mov ebx, 0
-    int 0x80
+    mov rax, 60          
+    mov rdi, 0           
+    syscall

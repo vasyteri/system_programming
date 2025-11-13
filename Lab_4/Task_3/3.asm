@@ -1,10 +1,8 @@
 format ELF64
 public _start
 public exit
-
-include '../../help.asm'
-
-
+include '/workspaces/system_programming/func.asm'
+include '/workspaces/system_programming/help.asm'
 
 section '.bss' writable
     buffer rb 256

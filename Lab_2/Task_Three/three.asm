@@ -33,27 +33,26 @@ section '.text' executable
         
 print_symbol:
     push rax
-    push rbx
-    push rcx
+    push rdi
+    push rsi
     push rdx
-
-
-    mov [place], al
+    push rcx
     
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, place
-    mov edx, 1
-    int 0x80
-
-
-    pop rdx
+    mov [place], al      
+    mov rax, 1           
+    mov rdi, 1           
+    mov rsi, place       
+    mov rdx, 1           
+    syscall
+    
     pop rcx
-    pop rbx
+    pop rdx
+    pop rsi
+    pop rdi
     pop rax
     ret
 
 exit:
-    mov eax, 1
-    mov ebx, 0
-    int 0x80
+    mov rax, 60          
+    mov rdi, 0           
+    syscall

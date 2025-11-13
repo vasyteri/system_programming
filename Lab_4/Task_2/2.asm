@@ -1,47 +1,55 @@
+
 format ELF64
 public _start
-
-include '../../func.asm'
-include '../../help.asm'
-
-section '.data' writable
-    truemsg db 'Number is in non-decreasing order', 10, 0
-    falsemsg db 'Number is not in non-decreasing order', 10, 0
+public exit
+include '/workspaces/system_programming/func.asm'
+include '/workspaces/system_programming/help.asm'
 
 section '.bss' writable
     buffer rb 256
-    prev dq 0
+    n dq 0
+    sum dq 0
 
 section '.text' executable
 _start:
+    ; Ввод числа n
     mov rsi, buffer
     call input_keyboard
 
+    ; Преобразование строки в число
     call atoi
+    mov [n], rax      ; сохраняем n
+    
+    mov rcx, 1        ; начинаем с k = 1
+    mov qword [sum], 0 ; обнуляем сумму
 
-    mov rcx, 10
-    xor rdx, rdx
-    div rcx
-    mov [prev], rdx
+loop_start:
+    ; Вычисляем k^2
+    mov rax, rcx
+    imul rax, rax     ; rax = k * k
+    
+    ; Определяем знак: (-1)^(k+1)
+    ; Нечетные k: +, четные k: -
+    test rcx, 1       ; проверяем четность k
+    jz even_k         ; если четный (ZF=1) - минус
+    
+    ; Нечетный k - плюс
+    add [sum], rax
+    jmp next_iter
+    
+even_k:
+    ; Четный k - минус  
+    sub [sum], rax
 
-    .digit_loop:
-        xor rdx, rdx
-        div rcx
+next_iter:
+    ; Переход к следующему k
+    inc rcx
+    cmp rcx, [n]
+    jle loop_start    ; пока k <= n
 
-        cmp rdx, [prev]
-        jg false
+    ; Выводим итоговую сумму
+    mov rax, [sum]
+    call print_int
+    call new_line
 
-        mov [prev], rdx
-
-        test rax, rax
-        jnz .digit_loop
-    mov rsi, truemsg
-    jmp final
-
-    false:
-        mov rsi, falsemsg
-
-
-    final:
-        call print_str
-        call exit
+    call exit

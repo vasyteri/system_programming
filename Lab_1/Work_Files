@@ -28,7 +28,9 @@ EOF
 @vasyteri ➜ /workspaces/system_programming/Work (main) $ gzip "Text #3"
 @vasyteri ➜ /workspaces/system_programming/Work (main) $ tar -cf "MyAchiv.tar" "Text @1.gz" "Text #3.gz"
 @vasyteri ➜ /workspaces/system_programming/Work (main) $ touch "ФИО/Result_one"
-@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) $ rev "Text @1" "Result_one"
-!юьтсоньлетизарбоос и мому ястеачилто нуровог ацитП
-...юьтсоньлетизарбоос ястеачилто ,мому ястеачилтО@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) $ 
-...юьтсоньлетизарбоос ястеачилто ,мому ястеачилтО@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) $ mv "Result_one" "Result_two"
+@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) $ rev "Text @1" > "Result_one"
+@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) $ mv "Result_one" "Result_two"
+@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main)ls -la "ФИО"/T* > "Лабараторная 1/Result_3"
+@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main) uname -a >> "Лабараторная 1/Result_3"
+@vasyteri ➜ /workspaces/system_programming/Work/ФИО (main)date >> "Лабараторная 1/Result_3"
+
