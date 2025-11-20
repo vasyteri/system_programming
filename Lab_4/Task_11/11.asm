@@ -18,77 +18,67 @@ section '.text' executable
 public _start
 
 _start:
-    ; 1. Запрос N (количества судей)
     mov rsi, msg_judges
     call print_str
     
-    ; Устанавливаем RSI на buffer для input_keyboard
     mov rsi, buffer     
     call input_keyboard
     
-    ; RSI все еще указывает на buffer, передаем его в atoi
     call atoi
-    mov rbp, rax        ; Сохраняем N в RBP
+    mov rbp, rax        
 
-    ; 2. Инициализация цикла голосования
-    xor rcx, rcx        ; rcx = i (счетчик цикла, 0..N-1)
-    xor rbx, rbx        ; rbx = votes_yes (счетчик "Да")
+    xor rcx, rcx        
+    xor rbx, rbx        
 
 .vote_loop:
-    ; Проверка (i < N ?)
     cmp rcx, rbp
-    jge .show_results   ; Если i >= N, переходим к результатам
+    jge .show_results   
 
-    ; 3. Запрос голоса
     mov rsi, msg_vote
     call print_str
     
     mov rsi, buffer     ; Снова устанавливаем RSI на buffer
     call input_keyboard
     
-    ; RSI указывает на buffer
-    call atoi            ; rax = 0 или 1
+
+    call atoi            
     
-    ; 4. Подсчет голоса
     cmp rax, 1
-    jne .next_vote      ; Если не 1 (т.е. 0 или мусор), не считаем
-    inc rbx             ; votes_yes++
+    jne .next_vote      
+    inc rbx             
 
 .next_vote:
-    inc rcx             ; i++
+    inc rcx             
     jmp .vote_loop
 
 .show_results:
-    ; 5. Расчет порогового значения большинства
-    ; (N / 2) + 1
-    mov rax, rbp        ; rax = N
+
+
+    mov rax, rbp       
     xor rdx, rdx
     mov rdi, 2
-    div rdi             ; rax = N / 2 (целочисленно)
-    inc rax             ; rax = (N / 2) + 1 (пороговое значение)
-    mov rdi, rax        ; Сохраняем пороговое значение в RDI
+    div rdi             
+    inc rax             
+    mov rdi, rax        
 
-    ; 6. Расчет голосов "Нет"
-    mov rax, rbp        ; rax = N
-    sub rax, rbx        ; rax = N - votes_yes
-    mov rdx, rax        ; rdx = votes_no
+    mov rax, rbp        
+    sub rax, rbx        
+    mov rdx, rax        
 
-    ; 7. Печать результатов
-    mov rax, rbx        ; votes_yes
+    mov rax, rbx        
     call print_int
     mov rsi, msg_yes
     call print_str
     call new_line
 
-    mov rax, rdx        ; votes_no
+    mov rax, rdx        
     call print_int
     mov rsi, msg_no
     call print_str
     call new_line
     
-    ; 8. Сравнение и вывод решения
-    ; rbx = votes_yes
-    ; rdi = majority_threshold
+
+
     cmp rbx, rdi
     jge .decision_yes   ; Если votes_yes >= (N/2 + 1)
 
