@@ -12,33 +12,39 @@ section '.data' writable
 section '.text' executable
 
 _start:
-   
-    mov rax, [rsp]          
-    cmp rax, 4              
-    jl finish              
+    mov rax, [rsp]
+    cmp rax, 4
+    jl finish
 
-    mov rsi, [rsp+8*2]      
+    mov rsi, [rsp+8*2]
     call str_number
-    push rax
+    mov r8, rax
 
-    mov rsi, [rsp+8*3+8]    
+    mov rsi, [rsp+8*3]
     call str_number
-    push rax
+    mov rbx, rax
 
-    mov rsi, [rsp+8*4+16]   
+    mov rsi, [rsp+8*4]
     call str_number
     mov rcx, rax
 
+    mov rax, r8
 
-    pop rbx
     test rbx, rbx
     jz finish
-    pop rax
-    test rax, rax
+    test rcx, rcx
     jz finish
-
-
+    
+    xor rdx, rdx
+    div rbx
+    
+    push rax
+    
+    mov rax, r8
+    
+    pop rbx
     add rax, rbx
+    
     xor rdx, rdx
     div rcx
 
@@ -52,13 +58,13 @@ str_number:
     push rcx
     push rbx
 
-    xor rax, rax       
-    xor rcx, rcx        
-    mov rbx, 10         
+    xor rax, rax
+    xor rcx, rcx
+    mov rbx, 10
 
 .loop:
-    mov cl, byte [rsi]  
-    test cl, cl         
+    mov cl, byte [rsi]
+    test cl, cl
     jz .finished
     
     cmp cl, '0'
@@ -66,11 +72,11 @@ str_number:
     cmp cl, '9'
     jg .finished
     
-    sub cl, '0'         
-    imul rax, rbx       
-    add rax, rcx        
+    sub cl, '0'
+    imul rax, rbx
+    add rax, rcx
     
-    inc rsi             
+    inc rsi
     jmp .loop
 
 .finished:
@@ -84,10 +90,10 @@ print_newline:
     push rsi
     push rdx
     
-    mov rax, 1             
-    mov rdi, 1              
-    mov rsi, newline        
-    mov rdx, 1              
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, newline
+    mov rdx, 1
     syscall
     
     pop rdx
@@ -104,10 +110,10 @@ print:
     push rsi
     push rdi
 
-    xor rbx, rbx        
+    xor rbx, rbx
     mov rcx, 10
 
-    test rax, rax       
+    test rax, rax
     jnz .loop
     
     
@@ -148,6 +154,6 @@ print:
     ret
 
 exit:
-    mov rax, 60        
-    xor rdi, rdi        
+    mov rax, 60
+    xor rdi, rdi
     syscall
