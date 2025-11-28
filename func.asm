@@ -17,11 +17,10 @@ atoi:
     cmp     bl, '9'
     jg      .finished
 
-    ; 4. rax = rax * 10
+
     mov     rbx, 10
     mul     rbx         
 
-    ; 5. rax = rax + (bl - '0')
     xor     rbx, rbx
     mov     bl, byte [rsi+rcx] 
     sub     bl, '0'

@@ -6,7 +6,7 @@ public print_symbol
 
 section '.data' writable
     place db ?
-    N dq 1019734634
+    N dq 11111111111111111111
     
 
 section '.text' executable

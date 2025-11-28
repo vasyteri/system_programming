@@ -37,7 +37,7 @@ _start:
     mov rsi, msg_vote
     call print_str
     
-    mov rsi, buffer     ; Снова устанавливаем RSI на buffer
+    mov rsi, buffer     
     call input_keyboard
     
 

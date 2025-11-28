@@ -6,7 +6,7 @@ public print_symbol
 
 section '.data' writable
     place db 1
-    array db 36 dup ('$')
+    array db 45 dup ('$')
     newline db 0xA
 
 section '.text' executable
@@ -19,11 +19,11 @@ section '.text' executable
         pop rbx
         
         mov rax, rbx
-        mov rcx, 4
+        mov rcx, 5
         xor rdx, rdx
         div rcx                     
         
-        cmp rdx, 3                  
+        cmp rdx, 4                  
         jne .continue
                 
         
@@ -34,7 +34,7 @@ section '.text' executable
         
     .continue:
         inc rbx
-        cmp rbx, 36
+        cmp rbx, 45
         jl .iter
         
         call exit

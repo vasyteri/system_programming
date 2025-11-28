@@ -6,7 +6,7 @@ public print_buffer
 public print_newline
 
 section '.data' writable
-    buffer db 4 dup(?)
+    buffer db 3 dup(?)
     newline db 0xA 
     
 
