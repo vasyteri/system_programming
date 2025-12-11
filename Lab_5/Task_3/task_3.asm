@@ -1,6 +1,8 @@
 format ELF64
 public _start
 
+include '/workspaces/system_programming/help.asm'
+
 section '.bss' writable
     input_fd     dq 0
     output_fd    dq 0

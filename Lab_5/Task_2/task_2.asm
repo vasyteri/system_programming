@@ -5,20 +5,28 @@ section '.bss' writable
     input_fd     dq 0
     output_fd    dq 0
     bytes_read   dq 0
-    line_count   dq 0
+    counter      dq 0
+    step         dq 0
 
 section '.data' writable
-    newline      db 0x0A
     BUFFER_SIZE equ 65536
     buffer       rb BUFFER_SIZE
-    line_ptrs    rq 10000
+    out_buffer   rb BUFFER_SIZE
 
 section '.text' executable
 _start:
     mov rax, [rsp]
-    cmp rax, 3
-    jge .open_input
-    jmp .exit
+    cmp rax, 4
+    jge .parse_args
+    jmp .exit_error
+
+.parse_args:
+    mov rdi, [rsp + 32]
+    call .atoi
+    mov [step], rax
+    
+    cmp qword [step], 0
+    jle .exit_error
 
 .open_input:
     mov rax, 2
@@ -26,120 +34,125 @@ _start:
     mov rsi, 0
     mov rdx, 0
     syscall
+    
     cmp rax, 0
-    jl .exit
+    jl .exit_error
     mov [input_fd], rax
 
-    mov rax, 0
-    mov rdi, [input_fd]
-    mov rsi, buffer
-    mov rdx, BUFFER_SIZE
-    syscall
-    cmp rax, 0
-    jle .close_input
-    mov [bytes_read], rax
-
-.close_input:
-    mov rax, 3
-    mov rdi, [input_fd]
-    syscall
-
-    cmp qword [bytes_read], 0
-    je .exit
-
+.open_output:
     mov rax, 2
     mov rdi, [rsp + 24]
     mov rsi, 101o
     mov rdx, 644o
     syscall
+    
     cmp rax, 0
-    jl .exit
+    jl .close_input_error
     mov [output_fd], rax
 
-.parse_lines:
+.read_loop:
+    mov rax, 0
+    mov rdi, [input_fd]
     mov rsi, buffer
-    mov rdi, line_ptrs
-    mov rbx, [bytes_read]
-    mov qword [line_count], 1
+    mov rdx, BUFFER_SIZE
+    syscall
+    
+    cmp rax, 0
+    jle .close_files
+    
+    mov [bytes_read], rax
 
-    mov [rdi], rsi
-    add rdi, 8
-
-.parse_loop:
-    test rbx, rbx
-    jz .parse_done
-
-    cmp byte [rsi], 0x0A
-    jne .next_byte
-
-    mov byte [rsi], 0
-
-
-    inc rsi
-    dec rbx
-    jz .parse_done
-
-    mov [rdi], rsi
-    inc qword [line_count]
-    add rdi, 8
-    jmp .parse_loop
-
-.next_byte:
-    inc rsi
-    dec rbx
-    jmp .parse_loop
-
-.parse_done:
-    mov rcx, [line_count]
+    mov rsi, buffer
+    mov rdi, out_buffer
+    mov rcx, [bytes_read]
+    mov rbx, [counter]
+    
+.process_byte:
     test rcx, rcx
-    jz .close_output
-
+    jz .write_output
+    
+    ; Делим позицию на шаг
+    mov rax, rbx
+    xor rdx, rdx
+    div qword [step]    
+    
+    ; Нужно брать символ, когда остаток = step-1
+    ; (потому что позиции начинаются с 0)
+    mov rax, [step]
+    dec rax             
+    cmp rdx, rax        
+    jne .skip_byte
+    
+    mov al, [rsi]
+    mov [rdi], al
+    inc rdi
+    
+.skip_byte:
+    inc rsi
+    inc rbx
     dec rcx
+    jmp .process_byte
 
-.write_loop:
-    push rcx
-    mov rax, rcx
-    shl rax, 3
-    mov rsi, [line_ptrs + rax]
-
-    mov rdi, rsi
-    call .strlen
+.write_output:
+    mov rax, rdi
+    sub rax, out_buffer
+    jz .update_counter
+    
     mov rdx, rax
-
-    test rdx, rdx
-    jz .write_newline
-
     mov rax, 1
     mov rdi, [output_fd]
+    mov rsi, out_buffer
     syscall
 
-.write_newline:
-    mov rax, 1
-    mov rdi, [output_fd]
-    mov rsi, newline
-    mov rdx, 1
+.update_counter:
+    mov [counter], rbx
+    jmp .read_loop
+
+.close_files:
+    mov rax, 3
+    mov rdi, [input_fd]
     syscall
-
-    pop rcx
-    dec rcx
-    jns .write_loop
-
-.close_output:
+    
     mov rax, 3
     mov rdi, [output_fd]
     syscall
-
-.exit:
+    
     mov rax, 60
     xor rdi, rdi
     syscall
 
-.strlen:
+.close_input_error:
+    mov rax, 3
+    mov rdi, [input_fd]
+    syscall
+
+.exit_error:
+    mov rax, 60
+    mov rdi, 1
+    syscall
+
+.atoi:
     xor rax, rax
-.strlen_loop:
-    cmp byte [rdi + rax], 0
-    je .strlen_done
-    inc rax
-    jmp .strlen_loop
-.strlen_done:
+    xor rcx, rcx
+    
+.convert_loop:
+    mov cl, [rdi]
+    test cl, cl
+    jz .atoi_done
+    
+    cmp cl, '0'
+    jb .atoi_done
+    cmp cl, '9'
+    ja .atoi_done
+    
+    mov rdx, 10
+    mul rdx
+    
+    sub cl, '0'
+    add rax, rcx
+    
+    inc rdi
+    jmp .convert_loop
+    
+.atoi_done:
     ret
