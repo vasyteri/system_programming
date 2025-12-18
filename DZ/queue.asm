@@ -17,21 +17,93 @@ f  db "/dev/urandom", 0
 newline db 10, 0
 space db " ", 0
 empty_msg db "Queue is empty", 10, 0
+heap_start dq 0
+current_brk dq 0
 
 section '.bss' writable
 number rq 1
 temp_buffer rb 32
-heap_start rq 1
-current_brk rq 1
 
 section '.text' executable
 
+; Инициализация кучи
+init_heap:
+    push rdi
+    push rax
+
+    mov rax, 12      ; sys_brk
+    xor rdi, rdi     ; NULL - получить текущий brk
+    syscall
+
+    mov [heap_start], rax
+    mov [current_brk], rax
+
+    pop rax
+    pop rdi
+    ret
+
+; void* brk_malloc(unsigned long size)
+brk_malloc:
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11
+
+    mov rbx, rdi    ; размер
+
+    ; Получить текущий brk
+    mov rax, 12      ; sys_brk
+    xor rdi, rdi     ; NULL
+    syscall
+
+    mov rsi, rax    ; сохранить текущий brк
+
+    ; Установить новый brk
+    add rax, rbx
+    mov rdi, rax
+    mov rax, 12      ; sys_brk
+    syscall
+
+    ; Проверить успешность
+    cmp rax, rsi
+    je .error
+
+    ; Вернуть указатель на выделенную память
+    mov rax, rsi
+    jmp .done
+
+.error:
+    xor rax, rax    ; возвращаем NULL при ошибке
+
+.done:
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+; void brk_free(void* ptr)
+brk_free:
+    ; Простая реализация - память освобождается только при сбросе всей кучи
+    ret
 
 create_queue:
     push rdi
 
+    call init_heap   ; Инициализируем кучу
+
     mov rdi, 24
-    call malloc
+    call brk_malloc  ; Используем brk_malloc вместо malloc
     test rax, rax
     jz .error
 
@@ -65,14 +137,14 @@ free_queue:
     mov rbx, [rbx + 8]  
 
     push rbx
-    call free
+    call brk_free       ; Используем brk_free вместо free
     pop rbx
 
     jmp .free_nodes
 
 .free_struct:
     mov rdi, r12
-    call free
+    call brk_free       ; Используем brk_free вместо free
 
 .done:
     pop r12 rbx rsi rdi
@@ -86,7 +158,7 @@ enqueue:
     mov r13, rsi  
 
     mov rdi, 16
-    call malloc
+    call brk_malloc     ; Используем brk_malloc вместо malloc
     test rax, rax
     jz .done
 
@@ -142,7 +214,7 @@ dequeue:
 
     push rax
     mov rdi, rbx
-    call free
+    call brk_free        ; Используем brk_free вместо free
     pop rax
     jmp .done
 
@@ -194,7 +266,7 @@ get_odd_numbers:
 
     mov r12, rdi  
 
-    call create_queue
+    call create_queue    ; create_queue внутри использует brk_malloc
     mov r13, rax 
     test r13, r13
     jz .done
@@ -215,7 +287,7 @@ get_odd_numbers:
     jz .next_node
 
     mov rdi, r13
-    call enqueue
+    call enqueue    ; enqueue внутри использует brk_malloc
 
 .next_node:
     mov rbx, [rbx + 8]
@@ -236,7 +308,7 @@ remove_even_numbers:
     test rax, rax
     jnz .done
 
-    call create_queue
+    call create_queue    ; create_queue внутри использует brk_malloc
     mov r13, rax
     test r13, r13
     jz .done
@@ -255,7 +327,7 @@ remove_even_numbers:
     jz .skip_odd
 
     mov rdi, r13
-    call enqueue
+    call enqueue    ; enqueue внутри использует brk_malloc
 
 .skip_odd:
     jmp .process_loop
@@ -272,7 +344,7 @@ remove_even_numbers:
     mov rsi, rax
 
     mov rdi, r12
-    call enqueue
+    call enqueue    ; enqueue внутри использует brk_malloc
     jmp .transfer_loop
 
 .cleanup:
@@ -363,8 +435,8 @@ print_queue:
 ranint:
     push rdi rsi rdx r8 r9 r10 r11
 
-    mov rax, 228
-    mov rdi, 1
+    mov rax, 228    ; sys_clock_gettime вместо sys_urandom
+    mov rdi, 1      ; CLOCK_MONOTONIC
     mov rsi, number
     syscall
 
@@ -414,37 +486,4 @@ print_number:
     call print_string
 
     pop r11 r10 r9 r8 rcx rdx rsi rdi
-    ret
-
-
-malloc:
-    push rbx rcx rdx rsi rdi r8 r9 r10 r11
-
-    mov rbx, rdi
-
-    mov rax, 12
-    xor rdi, rdi
-    syscall
-    mov [current_brk], rax
-
-    mov rdi, rax
-    add rdi, rbx
-    mov rax, 12
-    syscall
-
-    cmp rax, [current_brk]
-    je .error
-
-    mov rax, [current_brk]
-    jmp .done
-
-.error:
-    xor rax, rax
-
-.done:
-    pop r11 r10 r9 r8 rdi rsi rdx rcx rbx
-    ret
-
-
-free:
     ret
