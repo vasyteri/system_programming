@@ -76,8 +76,6 @@ _start:
     xor rdx, rdx
     div qword [step]    
     
-    ; Нужно брать символ, когда остаток = step-1
-    ; (потому что позиции начинаются с 0)
     mov rax, [step]
     dec rax             
     cmp rdx, rax        

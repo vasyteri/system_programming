@@ -1,183 +1,213 @@
 format ELF64
-
-include '/workspaces/system_programming/func.asm'
-
-section '.data'
-    prompt db '> ', 0
-    cd_cmd db 'cd', 0
-
-section '.bss'
-    buffer rb 256
-    child_pid dq 0
-    status dq 0
-
-section '.text'
 public _start
+public exit
 
-; Функция для вывода строки
-print_string:
-    mov rdx, 0
-.count_loop:
-    cmp byte [rdi + rdx], 0
-    je .count_done
-    inc rdx
-    jmp .count_loop
-.count_done:
+section '.data' writeable
+    input_buf       rb 256
+    arg_array       rq 12
 
-    mov rax, 1          ; sys_write
-    mov rsi, rdi        ; строка
-    mov rdi, 1          ; stdout
-    syscall
-    ret
+    prog_run5       db './lab_5', 0
+    arg1_run5       db 'input.txt', 0
+    arg2_run5       db 'output.txt', 0
 
-; Функция для сравнения строк
-strcmp:
-    mov al, byte [rdi]
-    cmp al, byte [rsi]
-    jne .not_equal
-    test al, al
-    jz .equal
-    inc rdi
-    inc rsi
-    jmp strcmp
-.equal:
-    xor rax, rax
-    ret
-.not_equal:
-    mov rax, 1
-    ret
+    prog_run6       db './lab_6', 0
 
-; Функция для пропуска пробелов в строке
-skip_spaces:
-.loop:
-    mov al, byte [rdi]
-    cmp al, ' '
-    jne .done
-    inc rdi
-    jmp .loop
-.done:
-    ret
+    cmd_run5        db 'Run5', 0
+    cmd_run6        db 'Run6', 0
+    cmd_exit        db 'exit', 0
 
-; Функция для получения переменных окружения
-get_envp:
-    mov rax, [rsp]          ; argc
-    lea rax, [rsp + 8 + rax * 8 + 8]  ; envp = argv[argc + 1]
-    ret
+    child_id        dq 0
+    status          dq 0
+
+    environ         dq 0
+
+    cursor          db '$ ', 0
+    err_cmd         db 'Command not found', 10, 0
+
+section '.text' executable
 
 _start:
-    ; Выравниваем стек по 16 байтам
-    and rsp, -16
+    mov r12, rsp
+    add r12, 8
 
-main_loop:
-    ; Вывод приглашения
-    mov rdi, prompt
-    call print_string
+    .env_scan:
+        cmp qword [r12], 0
+        je .env_found
+        add r12, 8
+        jmp .env_scan
 
-    ; Ввод команды
-    mov rsi, buffer
-    call input_keyboard
+    .env_found:
+        add r12, 8
+        mov [environ], r12
 
-    ; Проверка на пустую строку (только Enter)
-    cmp byte [buffer], 0
-    je main_loop        ; если пустая строка - продолжаем
+    .shell_loop:
+        mov rax, 1
+        mov rdi, 1
+        mov rsi, cursor
+        mov rdx, 2
+        syscall
 
-    ; Проверяем, является ли команда "cd"
-    mov rdi, buffer
-    call skip_spaces    ; пропускаем начальные пробелы
+        mov rax, 0
+        mov rdi, 0
+        mov rsi, input_buf
+        mov rdx, 255
+        syscall
 
-    mov rsi, cd_cmd
-    call strcmp
-    test rax, rax
-    jz handle_cd        ; если это команда cd
+        cmp rax, 0
+        jle exit
 
-    ; Обычная команда - создаем дочерний процесс
-    mov rax, 57         ; sys_fork
+        mov rcx, rax
+        dec rcx
+        cmp byte [input_buf + rcx], 10
+        jne .process_input
+        mov byte [input_buf + rcx], 0
+
+    .process_input:
+        mov rsi, input_buf
+        mov rdi, arg_array
+        xor rcx, rcx
+
+    .get_tokens:
+        cmp byte [rsi], ' '
+        je .next_char
+        cmp byte [rsi], 9
+        je .next_char
+        cmp byte [rsi], 0
+        je .all_tokens
+
+        mov [rdi + rcx*8], rsi
+        inc rcx
+
+    .find_end:
+        inc rsi
+        cmp byte [rsi], ' '
+        je .word_end
+        cmp byte [rsi], 9
+        je .word_end
+        cmp byte [rsi], 0
+        je .all_tokens
+        jmp .find_end
+
+    .word_end:
+        mov byte [rsi], 0
+        inc rsi
+        jmp .get_tokens
+
+    .next_char:
+        inc rsi
+        jmp .get_tokens
+
+    .all_tokens:
+        mov qword [rdi + rcx*8], 0
+
+        cmp rcx, 0
+        je .shell_loop
+
+        mov rsi, [arg_array]
+
+        mov rdi, cmd_exit
+        call compare_strings
+        test rax, rax
+        jz exit
+
+        mov rsi, [arg_array]
+        mov rdi, cmd_run5
+        call compare_strings
+        test rax, rax
+        jz .exec_run5
+
+        mov rsi, [arg_array]
+        mov rdi, cmd_run6
+        call compare_strings
+        test rax, rax
+        jz .exec_run6
+
+        mov rax, 1
+        mov rdi, 1
+        mov rsi, err_cmd
+        mov rdx, 18
+        syscall
+        jmp .shell_loop
+
+    .exec_run5:
+        mov qword [arg_array], prog_run5
+        mov qword [arg_array + 8], arg1_run5
+        mov qword [arg_array + 16], arg2_run5
+        mov qword [arg_array + 24], 0
+
+        mov r13, prog_run5
+        jmp .create_process
+
+    .exec_run6:
+        mov qword [arg_array], prog_run6
+
+        mov r13, prog_run6
+        jmp .create_process
+
+    .create_process:
+        mov rax, 57
+        syscall
+
+        cmp rax, 0
+        je .run_program
+
+        mov [child_id], rax
+        jmp .wait_process
+
+    .run_program:
+        mov rax, 59
+        mov rdi, r13
+        mov rsi, arg_array
+        mov rdx, [environ]
+        syscall
+
+        call error_exit
+
+    .wait_process:
+        mov rax, 61
+        mov rdi, [child_id]
+        mov rsi, status
+        xor rdx, rdx
+        xor r10, r10
+        syscall
+
+        jmp .shell_loop
+
+error_exit:
+    mov rax, 60
+    mov rdi, 1
     syscall
 
-    cmp rax, 0
-    jz child_process    ; если 0 -> дочерний процесс
-    jg parent_process   ; если >0 -> родительский процесс
-
-    ; Ошибка fork - продолжаем цикл
-    jmp main_loop
-
-parent_process:
-    ; Сохраняем PID дочернего процесса
-    mov [child_pid], rax
-
-    ; Ожидание завершения дочернего процесса
-    mov rax, 61         ; sys_wait4
-    mov rdi, [child_pid]
-    mov rsi, status
-    mov rdx, 0
-    mov r10, 0
+exit:
+    mov rax, 60
+    xor rdi, rdi
     syscall
 
-    jmp main_loop
+compare_strings:
+    push rsi
+    push rdi
+    push rbx
 
-child_process:
-    ; Получаем текущие переменные окружения
-    call get_envp
-    mov rdx, rax        ; envp
+    .compare_loop:
+        mov al, [rsi]
+        mov bl, [rdi]
+        cmp al, bl
+        jne .different
+        test al, al
+        jz .identical
+        inc rsi
+        inc rdi
+        jmp .compare_loop
 
-    ; Подготовка аргументов для execve
-    mov rdi, buffer     ; filename
+    .different:
+        mov rax, 1
+        jmp .finish
 
-    ; Создаем argv массив с правильным выравниванием
-    xor rax, rax
-    push rax            ; NULL terminator
-    push rdi            ; pointer to filename
-    mov rsi, rsp        ; argv
+    .identical:
+        xor rax, rax
 
-    ; Вызов execve
-    mov rax, 59         ; sys_execve
-    syscall
-
-    ; Если execve завершился ошибкой
-    mov rax, 60         ; sys_exit
-    mov rdi, 1          ; код ошибки
-    syscall
-
-; Обработчик команды cd
-handle_cd:
-    ; Пропускаем "cd" и пробелы после него
-    mov rdi, buffer
-    call skip_spaces    ; пропускаем начальные пробелы
-
-    ; Пропускаем "cd"
-    add rdi, 2
-    call skip_spaces    ; пропускаем пробелы после cd
-
-    ; Проверяем, есть ли аргумент (путь)
-    cmp byte [rdi], 0
-    jne .has_path
-
-    ; Если нет аргумента - переходим в домашнюю директорию
-    mov rdi, home_dir
-    jmp .do_chdir
-
-.has_path:
-    mov rdi, buffer
-    add rdi, 2          ; пропускаем "cd"
-    call skip_spaces    ; пропускаем пробелы
-
-.do_chdir:
-    ; Вызываем chdir
-    mov rax, 80         ; sys_chdir
-    syscall
-
-    ; Проверяем результат
-    test rax, rax
-    jns main_loop       ; если успешно - продолжаем цикл
-
-    ; Ошибка chdir
-    jmp main_loop
-
-exit_program:
-    ; Корректный выход из программы
-    mov rax, 60         ; sys_exit
-    xor rdi, rdi        ; код 0
-    syscall
-
-section '.data'
-home_dir db '/home', 0
+    .finish:
+        pop rbx
+        pop rdi
+        pop rsi
+        ret

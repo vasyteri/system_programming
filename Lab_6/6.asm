@@ -1,226 +1,194 @@
 format ELF64
 
-	public _start
+public _start
 
-	extrn initscr
-	extrn start_color
-	extrn init_pair
-	extrn getmaxx
-	extrn getmaxy
-	extrn raw
-	extrn noecho
-	extrn keypad
-	extrn stdscr
-	extrn move
-	extrn getch
-	extrn clear
-	extrn addch
-	extrn refresh
-	extrn endwin
-	extrn exit
-	extrn color_pair
-	extrn insch
-	extrn cbreak
-	extrn timeout
-	extrn mydelay
+extrn initscr
+extrn timeout
+extrn start_color
+extrn init_pair
+extrn getmaxx
+extrn getmaxy
+extrn raw
+extrn noecho
+extrn keypad
+extrn stdscr
+extrn move
+extrn getch
+extrn clear
+extrn addch
+extrn refresh
+extrn endwin
+extrn usleep
+extrn attron
+extrn curs_set
+extrn attroff
 
+section '.bss' writable
+direction dq 0
+x dq 0
+y dq 0
+max_x dq 0
+max_y dq 0
+speed dq 10000
+current_color_pair dq 1
+speed_level dq 1
 
-	section '.bss' writable
-	direction dq 0       ;; 0 = влево, 1 = вправо
-	x dq 0
-	y dq 0
-	max_x dq 0          ;; Максимальная координата X
-	max_y dq 0          ;; Максимальная координата Y
-	speed dq 10000
-	palette dq 1        ;; Текущий цвет (1 = CYAN, 2 = MAGENTA)
-	fill_complete dq 0
-	speed_level dq 1    ;; Уровень скорости (1-5)
+section '.data' writable
+current_char dq ' '
 
-	section '.data' writable
-	fill_char db ' '
-
-	section '.text' executable
+section '.text' executable
 
 _start:
-	;; Инициализация
-	call initscr
+    call initscr
+    mov rdi, [stdscr]
 
-	;; Размеры экрана
-	xor rdi, rdi
-	mov rdi, [stdscr]
-	call getmaxx
-	mov [max_x], rax
-	dec qword [max_x]
-	call getmaxy
-	mov [max_y], rax
-	dec qword [max_y]
+    call getmaxx
+    mov [max_x], rax
+    dec qword [max_x]
+    call getmaxy
+    mov [max_y], rax
+    dec qword [max_y]
 
-	call start_color
+    xor rdi, rdi
+    call curs_set
+    call noecho
+    call raw
+    call refresh
 
-	;; RED
-	mov rdx, 1
-	mov rsi, 1
-	mov rdi, 1
-	call init_pair
+    call start_color
 
-	;; MAGENTA
-	mov rdx, 5
-	mov rsi, 5
-	mov rdi, 2
-	call init_pair
+    mov rdx, 1
+    mov rsi, 0
+    mov rdi, 1
+    call init_pair
 
-	call refresh
-	call noecho
-	call cbreak
+    mov rdx, 5
+    mov rsi, 0
+    mov rdi, 2
+    call init_pair
 
-	mov rax, [max_x]
-	mov [x], rax
-	mov qword [y], 0
-	mov qword [direction], 0
-	mov qword [palette], 0x100
-	mov qword [fill_complete], 0
-	mov qword [speed_level], 1
-	mov qword [speed], 10000
+    mov qword [x], 0
+    mov qword [y], 0
+    mov qword [direction], 1
+    mov qword [current_color_pair], 1
+    mov qword [speed_level], 1
+    mov qword [speed], 50000
 
 mloop:
-	mov rdi, [y]
-	mov rsi, [x]
-	call move
+    mov rdi, [y]
+    mov rsi, [x]
+    call move
 
-	mov rax, [fill_complete]
-	cmp rax, 0
-	je .cyan_fill
-	jmp .magenta_fill
+    mov rdi, [current_color_pair]
+    shl rdi, 8
+    call attron
 
-.cyan_fill:
-	;; Заполняем CYAN
-	call get_space
-	or rax, 0x100
-	mov [palette], rax
-	jmp .print_char
+    mov rdi, [current_char]
+    call addch
 
-.magenta_fill:
-	;; Заполняем MAGENTA
-	call get_space
-	or rax, 0x200
-	mov [palette], rax
+    mov rdi, [current_color_pair]
+    shl rdi, 8
+    call attroff
 
-.print_char:
-	mov rdi, [palette]
-	call addch
+    call refresh
 
-	call refresh
+    mov rdi, [speed]
+    call usleep
 
-	mov rax, [direction]
-	cmp rax, 0
-	je .move_left
-	jmp .move_right
+    mov rdi, 0
+    call timeout
+    call getch
+
+    cmp rax, 'g'
+    je .change_speed
+    cmp rax, 'a'
+    je next
+
+    mov rax, [direction]
+    cmp rax, 1
+    je .move_right
 
 .move_left:
-	dec qword [x]
-	cmp qword [x], 0
-	jge .delay
+    dec qword [x]
+    cmp qword [x], 0
+    jge .check_movement
 
-	;; Достигли левого края - переходим на следующую строку
-	mov qword [x], 0
-	inc qword [y]
-	mov qword [direction], 1
-	jmp .check_bottom
+    mov qword [x], 0
+    mov qword [direction], 1
+    jmp .move_down
 
 .move_right:
-	inc qword [x]
-	mov rax, [x]
-	cmp rax, [max_x]
-	jle .delay
+    inc qword [x]
+    mov rax, [x]
+    cmp rax, [max_x]
+    jle .check_movement
 
-	;; Достигли правого края - переходим на следующую строку
-	mov rax, [max_x]
-	mov [x], rax
-	inc qword [y]
-	mov qword [direction], 0
+    mov rax, [max_x]
+    mov [x], rax
+    mov qword [direction], 0
 
-.check_bottom:
-	mov rax, [y]
-	cmp rax, [max_y]
-	jle .delay
+.move_down:
+    inc qword [y]
 
-	;; Достигли нижнего края
-	mov rax, [fill_complete]
-	cmp rax, 0
-	jne .restart_cyan
+.check_movement:
+    mov rax, [y]
+    cmp rax, [max_y]
+    jle mloop
 
-	;; Переключаем на заполнение MAGENTA
-	mov qword [fill_complete], 1
-	jmp .restart_position
+    mov rax, [current_color_pair]
+    cmp rax, 1
+    jne .switch_to_color1
 
-.restart_cyan:
-	mov qword [fill_complete], 0
+    mov qword [current_color_pair], 2
+    jmp .restart_position
+
+.switch_to_color1:
+    mov qword [current_color_pair], 1
 
 .restart_position:
-	mov rax, [max_x]
-	mov [x], rax
-	mov qword [y], 0
-	mov qword [direction], 0
-
-.delay:
-	mov rdi, [speed]
-	call mydelay
-
-	mov rdi, 1
-	call timeout
-	call getch
-
-	; ИЗМЕНЕНИЕ СКОРОСТИ: Теперь по 'g'
-	cmp rax, 'g'            
-	je .change_speed
-
-	; ВЫХОД: Теперь по 'a'
-	cmp rax, 'a'            
-	je next
-	
-	jmp mloop
+    mov qword [x], 0
+    mov qword [y], 0
+    mov qword [direction], 1
+    jmp mloop
 
 .change_speed:
-	mov rax, [speed_level]
-	inc rax
-	cmp rax, 6
-	jl .set_speed_level
-	mov rax, 1
+    mov rax, [speed_level]
+    inc rax
+    cmp rax, 6
+    jl .set_speed_level
+    mov rax, 1
 .set_speed_level:
-	mov [speed_level], rax
+    mov [speed_level], rax
 
-	cmp rax, 1
-	je .speed1
-	cmp rax, 2
-	je .speed2
-	cmp rax, 3
-	je .speed3
-	cmp rax, 4
-	je .speed4
-	cmp rax, 5
-	je .speed5
+    cmp rax, 1
+    je .speed1
+    cmp rax, 2
+    je .speed2
+    cmp rax, 3
+    je .speed3
+    cmp rax, 4
+    je .speed4
+    cmp rax, 5
+    je .speed5
 
 .speed1:
-	mov qword [speed], 10000
-	jmp mloop
+    mov qword [speed], 200000
+    jmp mloop
 .speed2:
-	mov qword [speed], 5000
-	jmp mloop
+    mov qword [speed], 100000
+    jmp mloop
 .speed3:
-	mov qword [speed], 2000
-	jmp mloop
+    mov qword [speed], 50000
+    jmp mloop
 .speed4:
-	mov qword [speed], 1000
-	jmp mloop
+    mov qword [speed], 10000
+    jmp mloop
 .speed5:
-	mov qword [speed], 500
-	jmp mloop
+    mov qword [speed], 1000
+    jmp mloop
 
 next:
-	call endwin
-	mov rdi, 0
-	call exit
-
-get_space:
-	mov rax, ' '
-	ret
+    call endwin
+    mov rax, 60
+    xor rdi, rdi
+    syscall

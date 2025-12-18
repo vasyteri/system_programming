@@ -1,22 +1,23 @@
 format ELF64
 
 ; Константы
-NUM_COUNT = 584
+NUM_COUNT = 891
 BUFFER_SIZE = NUM_COUNT * 4  ; 4 байта на число
 
 section '.data' writable
     ; Сообщения для вывода
     msg_fork_failed db "Ошибка создания процесса", 0xA, 0
 
-    msg_process1 db "Процесс 1 - Количество чисел, сумма цифр которых кратна 3: ", 0
-    msg_process2 db "Процесс 2 - Пятое после минимального: ", 0
-    msg_process3 db "Процесс 3 - 0.75 квантиль: ", 0
-    msg_process4 db "Процесс 4 - Наиболее редко встречающаяся цифра: ", 0
+    msg_process1 db "Медиана (округленная до целого): ", 0
+    msg_process2 db "Количество простых чисел: ", 0
+    msg_process3 db "Количество чисел кратных пяти: ", 0
+    msg_process4 db "Среднее арифметическое значение (округленное до целого): ", 0
     msg_newline db 0xA, 0
 
-    random_state dq 123456789  ; начальное состояние для ГСЧ
+    random_state dq 123456789  
+    const_10000 dq 10000       
 
-    ; Структуры для nanosleep
+    ; Структуры для nanosleep (для упорядоченного вывода)
     timespec1:
         tv_sec1  dq 0
         tv_nsec1 dq 100000000  ; 100ms
@@ -34,18 +35,16 @@ section '.data' writable
         tv_nsec4 dq 400000000  ; 400ms
 
 section '.bss' writable
-    ; Буфер для чисел
-    numbers rb BUFFER_SIZE
 
-    ; Временные буферы
+    numbers rb BUFFER_SIZE
+    
     temp_buffer rb 64
     sorted_array rb BUFFER_SIZE
-    digit_counts rb 10  ; Счетчики цифр 0-9
 
 section '.text' executable
 public _start
 
-; Макрос для системных вызовов
+
 macro syscall1 number {
     mov rax, number
     syscall
@@ -59,16 +58,15 @@ macro syscall3 number, arg1, arg2, arg3 {
     syscall
 }
 
-; Функция вывода строки с синхронизацией
-print_string_sync:
+; Функция вывода строки
+print_string:
     push rsi
     push rdx
     push rdi
     push rcx
 
-    mov rsi, rdi        ; указатель на строку
-    xor rdx, rdx        ; счетчик длины
-
+    mov rsi, rdi        
+    xor rdx, rdx        
 .count_length:
     cmp byte [rsi + rdx], 0
     je .print
@@ -76,11 +74,8 @@ print_string_sync:
     jmp .count_length
 
 .print:
-    ; Используем системный вызов write для атомарного вывода
-    mov rax, 1          ; sys_write
-    mov rdi, 1          ; stdout
-    mov rsi, rsi        ; указатель на строку
-    mov rdx, rdx        ; длина строки
+    mov rax, 1          
+    mov rdi, 1          
     syscall
 
     pop rcx
@@ -89,8 +84,8 @@ print_string_sync:
     pop rsi
     ret
 
-; Функция вывода числа с синхронизацией
-print_number_sync:
+; Функция вывода числа
+print_number:
     push rbx
     push rcx
     push rdx
@@ -120,7 +115,7 @@ print_number_sync:
 .print_result:
     inc rsi
     mov rdi, rsi
-    call print_string_sync
+    call print_string
 
     pop rdi
     pop rsi
@@ -129,51 +124,36 @@ print_number_sync:
     pop rbx
     ret
 
-; Функция вычисления суммы цифр числа
-sum_digits:
-    push rbx
-    push rcx
-    push rdx
-
-    mov rax, rdi
-    xor rcx, rcx        ; сумма цифр
-
-.sum_loop:
-    xor rdx, rdx
-    mov rbx, 10
-    div rbx
-    add rcx, rdx
-    test rax, rax
-    jnz .sum_loop
-
-    mov rax, rcx
-
-    pop rdx
-    pop rcx
-    pop rbx
-    ret
-
-; Простой генератор случайных чисел (Xorshift)
+;  генератор случайных чисел 
 random:
     push rbx
     push rcx
     push rdx
 
     mov rax, [random_state]
+    
+    
     mov rbx, rax
     shl rbx, 13
     xor rax, rbx
+    
     mov rbx, rax
-    shr rbx, 17
+    shr rbx, 7
     xor rax, rbx
+    
     mov rbx, rax
-    shl rbx, 5
+    shl rbx, 17
     xor rax, rbx
+    
     mov [random_state], rax
-
-    ; Ограничиваем диапазон
-    and rax, 0x7FFFFFFF
-
+    
+    ; Ограничиваем диапазон до 0-9999
+    ; Берем остаток от деления на 10000
+    xor rdx, rdx
+    mov rbx, 10000
+    div rbx
+    mov rax, rdx        
+    
     pop rdx
     pop rcx
     pop rbx
@@ -181,271 +161,260 @@ random:
 
 ; Функция паузы через nanosleep
 nanosleep:
-    mov rax, 35         ; sys_nanosleep
+    mov rax, 35         
     syscall
     ret
 
-; Процесс 1: Количество чисел, сумма цифр которых кратна 3
+; Проверка числа на простоту
+is_prime:
+    push rbx
+    push rcx
+    push rdx
+    push r8
+    
+    mov eax, edi        
+    cmp eax, 1
+    jle .not_prime
+    cmp eax, 2
+    je .prime
+    cmp eax, 3
+    je .prime
+    
+    
+    test eax, 1
+    jz .not_prime
+    
+    mov ecx, 3          
+    mov ebx, eax
+    
+.check_loop:
+    mov eax, ebx
+    xor edx, edx
+    div ecx
+    test edx, edx
+    jz .not_prime
+    
+    add ecx, 2          
+    mov eax, ecx
+    mul ecx
+    cmp eax, ebx
+    jle .check_loop
+    
+.prime:
+    mov rax, 1
+    jmp .done_check
+    
+.not_prime:
+    xor rax, rax
+    
+.done_check:
+    pop r8
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+; Процесс 1: Медиана (округленная до целого)
 process1:
-    ; Пауза для упорядоченного вывода
     mov rdi, timespec1
     xor rsi, rsi
     call nanosleep
 
     lea rdi, [msg_process1]
-    call print_string_sync
+    call print_string
 
+    
     mov rsi, numbers
+    mov rdi, sorted_array
     mov rcx, NUM_COUNT
-    xor rbx, rbx        ; счетчик
-
-.process1_loop:
-    mov edi, [rsi]      ; загружаем число
-    call sum_digits
-
-    ; Проверяем кратность 3
-    xor rdx, rdx
-    mov r8, 3
-    div r8
-    test rdx, rdx
-    jnz .not_multiple
-
-    inc rbx
-
-.not_multiple:
+.copy_loop1:
+    mov eax, [rsi]
+    mov [rdi], eax
     add rsi, 4
+    add rdi, 4
+    loop .copy_loop1
+
+    ; Сортировка пузырьком
+    mov rcx, NUM_COUNT
     dec rcx
-    jnz .process1_loop
+    jle .sort_done1
 
-    mov rdi, rbx
-    call print_number_sync
+.outer_loop1:
+    mov rbx, rcx
+    mov rdi, sorted_array
 
+.inner_loop1:
+    mov eax, [rdi]
+    mov edx, [rdi + 4]
+    cmp eax, edx
+    jle .no_swap1
+    mov [rdi], edx
+    mov [rdi + 4], eax
+.no_swap1:
+    add rdi, 4
+    dec rbx
+    jnz .inner_loop1
+    loop .outer_loop1
+
+.sort_done1:
+    
+    mov rax, NUM_COUNT
+    mov rbx, 2
+    xor rdx, rdx
+    div rbx
+    
+    test rdx, rdx
+    jnz .odd_count1
+    
+    ; Четное количество: среднее двух средних
+    mov rsi, sorted_array
+    shl rax, 2
+    add rsi, rax
+    mov eax, [rsi - 4]  
+    mov edx, [rsi]      
+    add eax, edx
+    add eax, 1          
+    shr eax, 1          
+    mov edi, eax
+    jmp .print_median1
+    
+.odd_count1:
+    ; Нечетное количество: средний элемент
+    mov rsi, sorted_array
+    shl rax, 2
+    add rsi, rax
+    mov edi, [rsi]
+
+.print_median1:
+    call print_number
+    
     lea rdi, [msg_newline]
-    call print_string_sync
-
-    mov rax, 60         ; exit
+    call print_string
+    
+    mov rax, 60
     xor rdi, rdi
     syscall
 
-; Процесс 2: Пятое после минимального
+; Процесс 2: Количество простых чисел
 process2:
-    ; Пауза побольше для второго процесса
     mov rdi, timespec2
     xor rsi, rsi
     call nanosleep
 
     lea rdi, [msg_process2]
-    call print_string_sync
+    call print_string
 
     mov rsi, numbers
     mov rcx, NUM_COUNT
+    xor rbx, rbx        
 
-    ; Находим минимальное значение
-    mov ebx, [rsi]      ; текущий минимум
-    mov r8, rsi         ; указатель на минимум
+.process2_loop:
+    mov edi, [rsi]      
+    call is_prime
+    test rax, rax
+    jz .not_prime2
+    
+    inc rbx
 
-.find_min_loop:
-    mov eax, [rsi]
-    cmp eax, ebx
-    jge .not_min
-
-    mov ebx, eax
-    mov r8, rsi
-
-.not_min:
+.not_prime2:
     add rsi, 4
-    dec rcx
-    jnz .find_min_loop
+    loop .process2_loop
 
-    ; Ищем пятое после минимального
-    mov rsi, r8
-    add rsi, 20         ; 5 элементов * 4 байта
-
-    ; Проверяем, не вышли ли за границы
-    mov rax, numbers
-    add rax, BUFFER_SIZE
-    cmp rsi, rax
-    jl .valid_ptr
-
-    ; Если вышли за границы, берем последний элемент
-    mov rsi, rax
-    sub rsi, 4
-
-.valid_ptr:
-    mov edi, [rsi]
-    call print_number_sync
+    mov rdi, rbx
+    call print_number
 
     lea rdi, [msg_newline]
-    call print_string_sync
-
-    mov rax, 60         ; exit
+    call print_string
+    
+    mov rax, 60
     xor rdi, rdi
     syscall
 
-; Процесс 3: 0.75 квантиль
+; Процесс 3: Количество чисел кратных пяти
 process3:
-    ; Еще большая пауза для третьего процесса
     mov rdi, timespec3
     xor rsi, rsi
     call nanosleep
 
     lea rdi, [msg_process3]
-    call print_string_sync
+    call print_string
 
-    ; Копируем массив для сортировки
     mov rsi, numbers
-    mov rdi, sorted_array
     mov rcx, NUM_COUNT
-.copy_loop:
+    xor rbx, rbx        
+
+.process3_loop:
     mov eax, [rsi]
-    mov [rdi], eax
+    
+    ; Проверяем кратность 5
+    xor edx, edx
+    mov edi, 5
+    div edi
+    test edx, edx
+    jnz .not_multiple3
+    
+    inc rbx
+
+.not_multiple3:
     add rsi, 4
-    add rdi, 4
-    dec rcx
-    jnz .copy_loop
+    loop .process3_loop
 
-    ; Пузырьковая сортировка
-    mov rcx, NUM_COUNT
-    dec rcx
-    jz .sort_done
-
-.outer_loop:
-    mov rbx, rcx
-    mov rdi, sorted_array
-
-.inner_loop:
-    mov eax, [rdi]
-    mov edx, [rdi + 4]
-    cmp eax, edx
-    jle .no_swap
-
-    ; Меняем местами
-    mov [rdi], edx
-    mov [rdi + 4], eax
-
-.no_swap:
-    add rdi, 4
-    dec rbx
-    jnz .inner_loop
-
-    loop .outer_loop
-
-.sort_done:
-    ; Вычисляем индекс для 0.75 квантиля
-    mov rax, NUM_COUNT
-    mov rbx, 3
-    mul rbx
-    mov rbx, 4
-    div rbx
-
-    ; Получаем значение (rax содержит индекс)
-    mov rsi, sorted_array
-    shl rax, 2
-    add rsi, rax
-    mov edi, [rsi]
-    call print_number_sync
+    mov rdi, rbx
+    call print_number
 
     lea rdi, [msg_newline]
-    call print_string_sync
-
-    mov rax, 60         ; exit
+    call print_string
+    
+    mov rax, 60
     xor rdi, rdi
     syscall
 
-; Процесс 4: Наиболее редко встречающаяся цифра
+; Процесс 4: Среднее арифметическое (округленное до целого)
 process4:
-    ; Самая большая пауза для четвертого процесса
     mov rdi, timespec4
     xor rsi, rsi
     call nanosleep
 
     lea rdi, [msg_process4]
-    call print_string_sync
+    call print_string
 
-    ; Обнуляем счетчики цифр
-    mov rdi, digit_counts
-    mov rcx, 10
-    xor al, al
-.clear_loop:
-    mov [rdi], al
-    inc rdi
-    dec rcx
-    jnz .clear_loop
-
-    ; Подсчитываем цифры
     mov rsi, numbers
     mov rcx, NUM_COUNT
+    xor rax, rax        
+    xor rbx, rbx        
+    xor r8, r8          
 
-.count_digits_loop:
-    mov edi, [rsi]
-    test edi, edi
-    jz .next_number
-
-.digit_loop:
-    xor rdx, rdx
-    mov rax, rdi
-    mov rbx, 10
-    div rbx
-
-    ; rdx содержит цифру
-    mov rdi, rax
-    lea r8, [digit_counts]
-    inc byte [r8 + rdx]
-
-    test rdi, rdi
-    jnz .digit_loop
-
-.next_number:
+.process4_loop:
+    mov ebx, [rsi]
+    add rax, rbx
     add rsi, 4
-    dec rcx
-    jnz .count_digits_loop
+    loop .process4_loop
 
-    ; Находим наименее частую цифру (игнорируя нулевые вхождения)
-    mov rsi, digit_counts
-    mov al, 0xFF        ; текущий минимум
-    mov bl, -1          ; цифра с минимумом
-    mov rcx, 0
-
-.find_min_digit:
-    mov dl, [rsi + rcx]
-    test dl, dl
-    jz .skip_zero       ; пропускаем нулевые счетчики
-
-    cmp dl, al
-    jae .not_min_digit
-
-    mov al, dl
-    mov bl, cl
-
-.not_min_digit:
-.skip_zero:
-    inc rcx
-    cmp rcx, 10
-    jl .find_min_digit
-
-    ; Если не нашли ни одной цифры, выводим 0
-    cmp bl, -1
-    jne .found_digit
-    mov bl, 0
-
-.found_digit:
-    mov dil, bl
-    add dil, '0'
-    mov [temp_buffer], dil
-    mov byte [temp_buffer + 1], 0
-
-    lea rdi, [temp_buffer]
-    call print_string_sync
+    
+    mov rcx, NUM_COUNT
+    xor rdx, rdx
+    div rcx
+    
+    
+    mov r8, rdx         
+    add r8, r8         
+    cmp r8, rcx         
+    jb .no_round
+    inc rax             
+.no_round:
+    
+    mov rdi, rax
+    call print_number
 
     lea rdi, [msg_newline]
-    call print_string_sync
-
-    mov rax, 60         ; exit
+    call print_string
+    
+    mov rax, 60
     xor rdi, rdi
     syscall
 
 _start:
-    ; Заполняем массив случайными числами
+    ; Заполняем массив случайными числами (от 0 до 9999)
     mov rsi, numbers
     mov rcx, NUM_COUNT
 
@@ -456,43 +425,46 @@ _start:
     dec rcx
     jnz .fill_loop
 
-    ; Создаем процессы
-    mov r15, 4          ; счетчик процессов
+    ; Создаем 4 процесса
+    mov r15, 4          
 
 .create_processes:
-    syscall1 57         ; fork
-
-    test rax, rax
-    jz .child_process   ; если 0 - это дочерний процесс
-    js .fork_error      ; если отрицательный - ошибка
-
-    ; Родительский процесс сохраняет PID
+    mov rax, 57         ; sys_fork
+    syscall
+    
+    cmp rax, 0
+    jl .fork_error
+    je .child_process   
+    
     push rax
     dec r15
     jnz .create_processes
-
-    ; Ожидаем завершения всех дочерних процессов
+    
+    mov r15, 4
+    
+    
 .wait_loop:
-    xor rdi, rdi
-    xor rsi, rsi
+    pop rdi            
+    xor rsi, rsi        
     xor rdx, rdx
     xor r10, r10
-    mov rax, 61         ; wait4
+    mov rax, 61         
     syscall
+    
+    
+    dec r15
+    jnz .wait_loop
 
-    test rax, rax
-    jg .wait_loop
-
-    ; Завершаем родительский процесс
+   
     mov rax, 60
     xor rdi, rdi
     syscall
 
 .child_process:
-    ; Определяем, какой процесс мы создали
+   
     mov rax, 4
     sub rax, r15
-
+    
     cmp rax, 1
     je process1
     cmp rax, 2
@@ -503,7 +475,7 @@ _start:
 
 .fork_error:
     lea rdi, [msg_fork_failed]
-    call print_string_sync
+    call print_string
     mov rax, 60
     mov rdi, 1
     syscall
