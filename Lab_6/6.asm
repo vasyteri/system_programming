@@ -50,7 +50,7 @@ _start:
     dec qword [max_y]
 
     xor rdi, rdi
-    call curs_set
+    ;call curs_set
     call noecho
     call raw
     call refresh

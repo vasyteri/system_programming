@@ -4,16 +4,17 @@ public _start
 include '/workspaces/system_programming/help.asm'
 
 section '.bss' writable
-    input_fd     dq 0
-    output_fd    dq 0
-    bytes_read   dq 0
-    line_count   dq 0
-
-section '.data' writable
-    newline      db 0x0A
+    input_fd     rq 1
+    output_fd    rq 1
+    bytes_read   rq 1
+    line_count   rq 1
     BUFFER_SIZE equ 65536
     buffer       rb BUFFER_SIZE
     line_ptrs    rq 10000
+
+section '.data' writable
+    newline      db 0x0A
+
 
 section '.text' executable
 _start:

@@ -2,16 +2,16 @@ format ELF64
 public _start
 
 section '.bss' writable
-    input_fd     dq 0
-    output_fd    dq 0
-    bytes_read   dq 0
-    counter      dq 0
-    step         dq 0
-
-section '.data' writable
+    input_fd     rq 1
+    output_fd    rq 1
+    bytes_read   rq 1
+    counter      rq 1
+    step         rq 1
     BUFFER_SIZE equ 65536
     buffer       rb BUFFER_SIZE
     out_buffer   rb BUFFER_SIZE
+
+
 
 section '.text' executable
 _start:
