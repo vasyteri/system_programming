@@ -1,423 +1,279 @@
 format ELF64
-extrn std_print_string
+
 public _start
 
 section '.data' writable
-    msg_wait_1      db 0, "Waiting for Player 1 (X)...", 10, 0
-    msg_wait_2      db 0, "Waiting for Player 2 (O)...", 10, 0
-    msg_start       db 0, "Both players connected! Game starts!", 10, 0
-    
-    ; Байт 0=Wait, 1=Turn, 2=Game Over
-    net_msg_wait    db 0, "Waiting for opponent...", 10, 0 
-    net_msg_turn    db 1, "Your turn (0-8): ", 0        
-    net_msg_win     db 2, "You WIN!", 10, 0
-    net_msg_lose    db 2, "You LOSE!", 10, 0
-    net_msg_draw    db 2, "Draw!", 10, 0    ; Сообщение о ничьей
-    
     server_addr:
-        dw 2
-        db 0x1F, 0x90 
-        dd 0          
+        dw 2                 ; AF_INET
+        db 0x0B, 0xB8       ; Port 3000
+        dd 0                ; INADDR_ANY
         dq 0
 
 section '.bss' writable
     server_sock     rq 1
     sock_p1         rq 1
     sock_p2         rq 1
-    board           rb 9
+    board           rb 9    ; Центральное поле
     buffer          rb 256
-    current_turn    db 0
-    moves_cnt       db 0    ; <-- СЧЕТЧИК ХОДОВ
+    current_turn    db 0    ; 0=P1, 1=P2
+    moves_cnt       db 0
 
 section '.text' executable
 _start:
-    ; === Инициализация сети ===
-    mov rax, 41         
-    mov rdi, 2
-    mov rsi, 1
+    ; === Создание сокета ===
+    mov rax, 41             ; socket
+    mov rdi, 2              ; AF_INET
+    mov rsi, 1              ; SOCK_STREAM
     xor rdx, rdx
     syscall
     mov [server_sock], rax
     
-    mov rax, 1          ; reuse addr
-    mov rdi, [server_sock]
-    mov rsi, 2          ; SOL_SOCKET
-    mov rdx, 2          ; SO_REUSEADDR (примерно, зависит от системы, можно пропустить)
-    
-    mov rax, 49         ; bind
+    ; === Привязка сокета ===
+    mov rax, 49             ; bind
     mov rdi, [server_sock]
     lea rsi, [server_addr]
     mov rdx, 16
     syscall
     
-    mov rax, 50         ; listen
+    ; === Прослушивание ===
+    mov rax, 50             ; listen
     mov rdi, [server_sock]
-    mov rsi, 2
+    mov rsi, 2              ; backlog
     syscall
 
-    ; === Подключение игроков ===
-    mov rdi, msg_wait_1
-    inc rdi
-    call std_print_string
-    
-    mov rax, 43         ; accept P1
+    ; === Подключение игрока 1 ===
+    mov rax, 43             ; accept
     mov rdi, [server_sock]
     xor rsi, rsi
     xor rdx, rdx
     syscall
     mov [sock_p1], rax
-
-    mov rdi, msg_wait_2
-    inc rdi
-    call std_print_string
     
-    mov rax, 43         ; accept P2
+    ; Отправляем P1 его символ (1 = X) и статус (1 = ходят сейчас)
+    mov byte [buffer], 1     ; Символ X
+    mov byte [buffer + 1], 1 ; Статус: активен
+    mov rax, 1              ; write
+    mov rdi, [sock_p1]
+    lea rsi, [buffer]
+    mov rdx, 2
+    syscall
+
+    ; === Подключение игрока 2 ===
+    mov rax, 43             ; accept
     mov rdi, [server_sock]
     xor rsi, rsi
     xor rdx, rdx
     syscall
     mov [sock_p2], rax
-
-    mov rdi, msg_start
-    inc rdi
-    call std_print_string
+    
+    ; Отправляем P2 его символ (2 = O) и статус (0 = ждет)
+    mov byte [buffer], 2     ; Символ O
+    mov byte [buffer + 1], 0 ; Статус: ждет
+    mov rax, 1              ; write
+    mov rdi, [sock_p2]
+    lea rsi, [buffer]
+    mov rdx, 2
+    syscall
 
 game_loop:
-    ; === 1. Рассылка карты ===
-    call create_map   
-    mov rdx, rax      
-    
-    mov rax, 1
-    mov rdi, [sock_p1]
-    mov rsi, buffer
-    syscall
-    
-    mov rax, 1
-    mov rdi, [sock_p2]
-    mov rsi, buffer
-    syscall
-
-    call wait_ack_p1
-    call wait_ack_p2
-
-    ; === 2. Проверка итогов ===
-    call check_win
-    cmp rax, 1 
-    je win_p1
-    cmp rax, 2 
-    je win_p2
-    
-    ; === ПРОВЕРКА НИЧЬЕЙ ===
-    cmp byte [moves_cnt], 9
-    je draw_game
-
-    ; === 3. Ход ===
+    ; === Определяем, чей ход ===
     cmp byte [current_turn], 0
-    je turn_player_1
-    jmp turn_player_2
-
-turn_player_1:
-    ; P2 ждет
-    mov rax, 1
-    mov rdi, [sock_p2]
-    lea rsi, [net_msg_wait]
-    mov rdx, 24
-    syscall
-
-    ; P1 ходит
-    mov rax, 1
-    mov rdi, [sock_p1]
-    lea rsi, [net_msg_turn]
-    mov rdx, 18
-    syscall
-
-    call wait_ack_p1
-    call wait_ack_p2
+    je .p1_turn
+    jmp .p2_turn
     
-    ; Читаем ход P1
-    mov rax, 0
+    .p1_turn:
+        ; Обновляем статус P1 и P2
+        mov byte [buffer + 9], 1  ; P1 активен
+        call send_state_p1
+        mov byte [buffer + 9], 0  ; P2 ждет
+        call send_state_p2
+        
+        ; Ждем ход от P1
+        mov rax, 0          ; read
+        mov rdi, [sock_p1]
+        lea rsi, [buffer]
+        mov rdx, 1
+        syscall
+        
+        ; Проверяем валидность хода
+        movzx rbx, byte [buffer]
+        sub rbx, '0'
+        cmp rbx, 8
+        ja game_loop
+        cmp byte [board + rbx], 0
+        jne game_loop
+        
+        ; Обновляем поле
+        mov byte [board + rbx], 1  ; X
+        inc byte [moves_cnt]
+        mov byte [current_turn], 1 ; Передаем ход P2
+        jmp .update_state
+    
+    .p2_turn:
+        ; Обновляем статус P1 и P2
+        mov byte [buffer + 9], 0  ; P1 ждет
+        call send_state_p1
+        mov byte [buffer + 9], 1  ; P2 активен
+        call send_state_p2
+        
+        ; Ждем ход от P2
+        mov rax, 0          ; read
+        mov rdi, [sock_p2]
+        lea rsi, [buffer]
+        mov rdx, 1
+        syscall
+        
+        ; Проверяем валидность хода
+        movzx rbx, byte [buffer]
+        sub rbx, '0'
+        cmp rbx, 8
+        ja game_loop
+        cmp byte [board + rbx], 0
+        jne game_loop
+        
+        ; Обновляем поле
+        mov byte [board + rbx], 2  ; O
+        inc byte [moves_cnt]
+        mov byte [current_turn], 0 ; Передаем ход P1
+    
+    .update_state:
+        ; Проверяем, не закончилась ли игра
+        call check_winner
+        test rax, rax
+        jnz .game_over
+        
+        cmp byte [moves_cnt], 9
+        je .game_over
+        
+        jmp game_loop
+    
+    .game_over:
+        ; Отправляем финальное состояние
+        mov byte [buffer + 9], 2  ; Статус: игра окончена
+        call send_state_p1
+        call send_state_p2
+        
+        ; Закрываем соединения
+        mov rax, 3          ; close
+        mov rdi, [sock_p1]
+        syscall
+        
+        mov rax, 3
+        mov rdi, [sock_p2]
+        syscall
+        
+        mov rax, 3
+        mov rdi, [server_sock]
+        syscall
+        
+        mov rax, 60         ; exit
+        xor rdi, rdi
+        syscall
+
+; === Отправка состояния P1 ===
+send_state_p1:
+    ; Копируем поле в буфер
+    mov rcx, 9
+    lea rsi, [board]
+    lea rdi, [buffer]
+    rep movsb
+    
+    mov rax, 1              ; write
     mov rdi, [sock_p1]
     lea rsi, [buffer]
-    mov rdx, 1         
-    syscall
-
-    mov al, [buffer]
-    sub al, '0'
-    
-    cmp al, 8
-    ja turn_player_1   
-    
-    movzx rbx, al
-    cmp byte [board + rbx], 0
-    jne turn_player_1  
-
-    mov byte [board + rbx], 1 
-    inc byte [moves_cnt]       ; <-- УВЕЛИЧИВАЕМ СЧЕТЧИК
-    mov byte [current_turn], 1
-    jmp game_loop
-
-turn_player_2:
-    ; P1 ждет
-    mov rax, 1
-    mov rdi, [sock_p1]
-    lea rsi, [net_msg_wait]
-    mov rdx, 24
-    syscall
-
-    ; P2 ходит
-    mov rax, 1
-    mov rdi, [sock_p2]
-    lea rsi, [net_msg_turn]
-    mov rdx, 18
-    syscall
-
-    call wait_ack_p1
-    call wait_ack_p2
-    
-    ; Читаем ход P2
-    mov rax, 0
-    mov rdi, [sock_p2]
-    lea rsi, [buffer]
-    mov rdx, 1         
-    syscall
-    
-    mov al, [buffer]
-    sub al, '0'
-    
-    cmp al, 8
-    ja turn_player_2
-    
-    movzx rbx, al
-    cmp byte [board + rbx], 0
-    jne turn_player_2
-
-    mov byte [board + rbx], 2 
-    inc byte [moves_cnt]       ; <-- УВЕЛИЧИВАЕМ СЧЕТЧИК
-    mov byte [current_turn], 0
-    jmp game_loop
-
-; === Утилиты ===
-wait_ack_p1:
-    mov rax, 0 
-    mov rdi, [sock_p1]
-    lea rsi, [buffer]
-    mov rdx, 1 
+    mov rdx, 10             ; 9 байт поле + 1 байт статус
     syscall
     ret
 
-wait_ack_p2:
-    mov rax, 0 
+; === Отправка состояния P2 ===
+send_state_p2:
+    ; Копируем поле в буфер
+    mov rcx, 9
+    lea rsi, [board]
+    lea rdi, [buffer]
+    rep movsb
+    
+    mov rax, 1              ; write
     mov rdi, [sock_p2]
     lea rsi, [buffer]
-    mov rdx, 1 
-    syscall 
+    mov rdx, 10             ; 9 байт поле + 1 байт статус
+    syscall
     ret
 
-win_p1:
-    mov rax, 1
-    mov rdi, [sock_p1]
-    lea rsi, [net_msg_win]
-    mov rdx, 10 
-    syscall
-    
-    mov rax, 1
-    mov rdi, [sock_p2]
-    lea rsi, [net_msg_lose]
-    mov rdx, 11
-    syscall
-    jmp game_over       
-
-win_p2:
-    mov rax, 1
-    mov rdi, [sock_p1]
-    lea rsi, [net_msg_lose]
-    mov rdx, 11
-    syscall
-    
-    mov rax, 1
-    mov rdi, [sock_p2]
-    lea rsi, [net_msg_win]
-    mov rdx, 10
-    syscall
-    jmp game_over
-
-draw_game:              ; <-- ОБРАБОТЧИК НИЧЬЕЙ
-    mov rax, 1
-    mov rdi, [sock_p1]
-    lea rsi, [net_msg_draw]
-    mov rdx, 8          
-    syscall
-
-    mov rax, 1
-    mov rdi, [sock_p2]
-    lea rsi, [net_msg_draw]
-    mov rdx, 8
-    syscall
-    jmp game_over
-
-game_over:
-    mov rax, 60
-    xor rdi, rdi
-    syscall
-
-; === Оставляем функции create_map и check_win без изменений ===
-create_map:
+; === Проверка победителя (упрощенная) ===
+check_winner:
     push rbp
     mov rbp, rsp
-    push rbx
-    push rcx
-    push rdx
-    push r8
-
-    xor rcx, rcx
-    mov byte [buffer], 0
-    mov rbx, 1
-    .big_loop:
+    
+    ; Проверка строк
+    mov rcx, 0
+    .check_rows:
         cmp rcx, 3
-        jge .end 
-        mov rax, 0x2D2D2D2D2D2D2D2D
-        mov qword [buffer + rbx], rax
-        add rbx, 8
-        mov eax, 0x2D2D2D2D
-        mov dword [buffer + rbx], eax
-        add rbx, 4
-        mov byte [buffer + rbx], 0x2D
-        inc rbx
-        mov byte [buffer + rbx], 10 
-        inc rbx
-        mov byte [buffer + rbx], '|' 
-        inc rbx
-        xor rdx, rdx
-        .small_loop:
-            cmp rdx, 3
-            jge .big_inc
-            mov byte [buffer + rbx], ' '
-            inc rbx
-            mov r8, rcx
-            imul r8, 3
-            add r8, rdx
-            movzx rax, byte [board + r8]
-            cmp rax, 0
-            jne .not_empty
-            mov byte [buffer + rbx], ' '
-            inc rbx
-            jmp .small_inc
-            .not_empty:
-            cmp rax, 1
-            jne .X
-            mov byte [buffer + rbx], 'X'
-            inc rbx
-            jmp .small_inc
-            .X:
-            mov byte [buffer + rbx], 'O'
-            inc rbx
-            .small_inc:
-                mov byte [buffer + rbx], ' '
-                inc rbx
-                mov byte [buffer + rbx], '|'
-                inc rbx
-                inc rdx
-                jmp .small_loop
-    .big_inc:
-        mov byte [buffer + rbx], 10
-        inc rbx
-        inc rcx
-        jmp .big_loop
-    .end:
-        mov rax, 0x2D2D2D2D2D2D2D2D
-        mov qword [buffer + rbx], rax
-        add rbx, 8
-        mov eax, 0x2D2D2D2D
-        mov dword [buffer + rbx], eax
-        add rbx, 4
-        mov byte [buffer + rbx], 0x2D
-        inc rbx
-        mov byte [buffer + rbx], 10 
-        inc rbx
-        mov byte [buffer + rbx], 0
-        inc rbx
-        mov rax, rbx
-        pop r8
-        pop rdx
-        pop rcx
-        pop rbx
+        jge .check_cols
+        
+        mov rax, rcx
+        imul rax, 3
+        movzx rdx, byte [board + rax]
+        cmp rdx, 0
+        je .next_row
+        
+        cmp dl, byte [board + rax + 1]
+        jne .next_row
+        cmp dl, byte [board + rax + 2]
+        je .found_winner
+        
+        .next_row:
+            inc rcx
+            jmp .check_rows
+    
+    .check_cols:
+        mov rcx, 0
+        .col_loop:
+            cmp rcx, 3
+            jge .check_diags
+            
+            movzx rdx, byte [board + rcx]
+            cmp rdx, 0
+            je .next_col
+            
+            cmp dl, byte [board + rcx + 3]
+            jne .next_col
+            cmp dl, byte [board + rcx + 6]
+            je .found_winner
+            
+            .next_col:
+                inc rcx
+                jmp .col_loop
+    
+    .check_diags:
+        ; Главная диагональ
+        movzx rdx, byte [board]
+        cmp rdx, 0
+        je .check_sec_diag
+        
+        cmp dl, byte [board + 4]
+        jne .check_sec_diag
+        cmp dl, byte [board + 8]
+        je .found_winner
+        
+        .check_sec_diag:
+            movzx rdx, byte [board + 2]
+            cmp rdx, 0
+            je .no_winner
+            
+            cmp dl, byte [board + 4]
+            jne .no_winner
+            cmp dl, byte [board + 6]
+            je .found_winner
+    
+    .no_winner:
+        xor rax, rax
+        jmp .done
+    
+    .found_winner:
+        movzx rax, dl
+    
+    .done:
         mov rsp, rbp
         pop rbp
         ret
-
-check_win:
-    push rbp
-    mov rbp, rsp
-    mov al, [board + 0]
-    cmp al, 0
-    je .check_row2
-    cmp al, [board + 1]
-    jne .check_row2
-    cmp al, [board + 2]
-    je .win_found
-.check_row2:
-    mov al, [board + 3]
-    cmp al, 0
-    je .check_row3
-    cmp al, [board + 4]
-    jne .check_row3
-    cmp al, [board + 5]
-    je .win_found
-.check_row3:
-    mov al, [board + 6]
-    cmp al, 0
-    je .check_cols
-    cmp al, [board + 7]
-    jne .check_cols
-    cmp al, [board + 8]
-    je .win_found
-.check_cols:
-    mov al, [board + 0]
-    cmp al, 0
-    je .check_col2
-    cmp al, [board + 3]
-    jne .check_col2
-    cmp al, [board + 6]
-    je .win_found
-.check_col2:
-    mov al, [board + 1]
-    cmp al, 0
-    je .check_col3
-    cmp al, [board + 4]
-    jne .check_col3
-    cmp al, [board + 7]
-    je .win_found
-.check_col3:
-    mov al, [board + 2]
-    cmp al, 0
-    je .check_diagonals
-    cmp al, [board + 5]
-    jne .check_diagonals
-    cmp al, [board + 8]
-    je .win_found
-.check_diagonals:
-    mov al, [board + 0]
-    cmp al, 0
-    je .check_diag2
-    cmp al, [board + 4]
-    jne .check_diag2
-    cmp al, [board + 8]
-    je .win_found
-.check_diag2:
-    mov al, [board + 2]
-    cmp al, 0
-    je .no_win
-    cmp al, [board + 4]
-    jne .no_win
-    cmp al, [board + 6]
-    je .win_found
-.no_win:
-    xor rax, rax
-    mov rsp, rbp
-    pop rbp
-    ret
-.win_found:
-    movzx rax, al
-    mov rsp, rbp
-    pop rbp
-    ret
