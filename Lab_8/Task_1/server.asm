@@ -69,7 +69,7 @@ _start:
     ; Отправляем P2 его символ (2 = O) и статус (0 = ждет)
     mov byte [buffer], 2     ; Символ O
     mov byte [buffer + 1], 0 ; Статус: ждет
-    mov rax, 1              ; write
+    mov rax, 1              
     mov rdi, [sock_p2]
     lea rsi, [buffer]
     mov rdx, 2
@@ -154,7 +154,7 @@ game_loop:
         call send_state_p2
         
         ; Закрываем соединения
-        mov rax, 3          ; close
+        mov rax, 3          
         mov rdi, [sock_p1]
         syscall
         
@@ -166,7 +166,7 @@ game_loop:
         mov rdi, [server_sock]
         syscall
         
-        mov rax, 60         ; exit
+        mov rax, 60         
         xor rdi, rdi
         syscall
 
@@ -178,10 +178,10 @@ send_state_p1:
     lea rdi, [buffer]
     rep movsb
     
-    mov rax, 1              ; write
+    mov rax, 1              
     mov rdi, [sock_p1]
     lea rsi, [buffer]
-    mov rdx, 10             ; 9 байт поле + 1 байт статус
+    mov rdx, 10             
     syscall
     ret
 
@@ -193,10 +193,10 @@ send_state_p2:
     lea rdi, [buffer]
     rep movsb
     
-    mov rax, 1              ; write
+    mov rax, 1              
     mov rdi, [sock_p2]
     lea rsi, [buffer]
-    mov rdx, 10             ; 9 байт поле + 1 байт статус
+    mov rdx, 10             
     syscall
     ret
 

@@ -53,9 +53,9 @@ std_print_string:
         jmp .count_loop
     
     .print:
-        mov rax, 1          ; write
-        mov rdi, 1          ; stdout
-        mov rdx, rcx        ; длина
+        mov rax, 1          
+        mov rdi, 1          
+        mov rdx, rcx        
         syscall
     
     pop rsi
@@ -83,13 +83,13 @@ std_print_number:
     mov byte [rsi], 0
     dec rsi
     
-    mov rax, rdi        ; Число
+    mov rax, rdi        
     mov rbx, 10
     xor rcx, rcx
     
     .convert_loop:
         xor rdx, rdx
-        div rbx         ; rax / 10
+        div rbx         
         add dl, '0'
         mov [rsi], dl
         dec rsi
@@ -374,8 +374,8 @@ _start:
 
     ; === Подключение к серверу ===
     mov rax, 41         ; socket
-    mov rdi, 2          ; AF_INET
-    mov rsi, 1          ; SOCK_STREAM
+    mov rdi, 2          
+    mov rsi, 1          
     mov rdx, 0
     syscall
     mov [sock_fd], rax
@@ -452,8 +452,8 @@ game_loop:
     call std_print_string
     
 .get_input:
-    mov rax, 0          ; read
-    mov rdi, 0          ; stdin
+    mov rax, 0          
+    mov rdi, 0          
     mov rsi, buffer
     mov rdx, 2
     syscall
@@ -470,9 +470,9 @@ game_loop:
     jne .invalid_move
     
     ; Отправляем ход серверу
-    mov rax, 1          ; write
+    mov rax, 1          
     mov rdi, [sock_fd]
-    mov rsi, buffer     ; Позиция
+    mov rsi, buffer     
     mov rdx, 1
     syscall
     
@@ -511,7 +511,7 @@ exit_game:
     mov rdi, [sock_fd]
     syscall
     
-    mov rax, 60         ; exit
+    mov rax, 60         
     xor rdi, rdi
     syscall
 
