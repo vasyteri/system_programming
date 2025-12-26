@@ -43,8 +43,8 @@ std_print_string:
     push rdx
     push rsi
     
-    mov rsi, rdi        ; Указатель на строку
-    xor rcx, rcx        ; Счетчик длины
+    mov rsi, rdi        
+    xor rcx, rcx        
     
     .count_loop:
         cmp byte [rsi + rcx], 0
@@ -181,7 +181,7 @@ draw_board:
 
 .print_row:
     ; Завершаем строку
-    mov byte [rbx], 10      ; новая строка
+    mov byte [rbx], 10     
     inc rbx
     mov byte [rbx], 0
     
