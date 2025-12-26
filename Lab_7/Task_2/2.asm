@@ -31,7 +31,7 @@ section '.data' writable
     random_state dq 123456789  
     const_10000 dq 10000       
 
-    ; Структуры для nanosleep (для упорядоченного вывода)
+
     timespec1:
         tv_sec1  dq 0
         tv_nsec1 dq 100000000  ; 100ms
@@ -49,34 +49,15 @@ section '.data' writable
         tv_nsec4 dq 400000000  ; 400ms
 
 section '.bss' writable
-    numbers_ptr dq ?        ; Указатель на массив чисел
-    sorted_ptr dq ?         ; Указатель на отсортированный массив
-    temp_buffer_ptr dq ?    ; Указатель на временный буфер
+    numbers_ptr dq ?        
+    sorted_ptr dq ?         
+    temp_buffer_ptr dq ?    
 
 section '.text' executable
 public _start
 
 macro syscall1 number {
     mov rax, number
-    syscall
-}
-
-macro syscall3 number, arg1, arg2, arg3 {
-    mov rax, number
-    mov rdi, arg1
-    mov rsi, arg2
-    mov rdx, arg3
-    syscall
-}
-
-macro syscall6 number, arg1, arg2, arg3, arg4, arg5, arg6 {
-    mov rax, number
-    mov rdi, arg1
-    mov rsi, arg2
-    mov rdx, arg3
-    mov r10, arg4
-    mov r8, arg5
-    mov r9, arg6
     syscall
 }
 
